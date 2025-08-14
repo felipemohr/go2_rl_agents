@@ -34,7 +34,9 @@ ament_python_install_package(${PROJECT_NAME})
 
 # Install Python executables
 install(PROGRAMS
+  scripts/go2_wireless_controller.py
   scripts/go2_agent_base.py
+  scripts/go2_agent_cpg.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

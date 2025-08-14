@@ -32,6 +32,10 @@ install(
 # Install python modules
 ament_python_install_package(${PROJECT_NAME})
 
-
+# Install Python executables
+install(PROGRAMS
+  scripts/go2_agent_base.py
+  DESTINATION lib/${PROJECT_NAME}
+)
 
 ament_package()

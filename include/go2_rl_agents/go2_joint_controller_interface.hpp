@@ -4,6 +4,7 @@
 #include "unitree_api/msg/request.hpp"
 #include "unitree_go/msg/low_state.hpp"
 #include "unitree_go/msg/low_cmd.hpp"
+#include "unitree_go/msg/motor_cmds.hpp"
 #include <array>
 
 const int32_t ROBOT_STATE_API_ID_SERVICE_SWITCH = 1001;
@@ -21,13 +22,17 @@ public:
   void StandUp();
 
 private:
-  void publishCmdCallback();
+  void publishStandCmdCallback();
+  void receiveCmdCallback(const unitree_go::msg::MotorCmds::SharedPtr msg);
+
+  rclcpp::Subscription<unitree_go::msg::MotorCmds>::SharedPtr agent_cmds_subscription_;
 
   rclcpp::Publisher<unitree_api::msg::Request>::SharedPtr sport_req_publisher_;
   rclcpp::Publisher<unitree_api::msg::Request>::SharedPtr state_req_publisher_;
 
   rclcpp::Publisher<unitree_go::msg::LowCmd>::SharedPtr low_cmd_publisher_;
-  rclcpp::TimerBase::SharedPtr low_cmd_timer_;
+  rclcpp::TimerBase::SharedPtr stand_timer_;
+  rclcpp::TimerBase::SharedPtr stand_cmd_timer_;
 
   unitree_go::msg::LowCmd low_cmd_;
 

@@ -12,14 +12,23 @@ Go2JointControllerInterface::Go2JointControllerInterface() : Node("go2_joint_con
   state_req_publisher_ = this->create_publisher<unitree_api::msg::Request>("/api/robot_state/request", 10);
   low_cmd_publisher_ = this->create_publisher<unitree_go::msg::LowCmd>("/lowcmd", 10);
 
-  stand_cmd_q_ = {0.0, 0.67, -1.3, 0.0, 0.67, -1.3, 0.0, 0.67, -1.3, 0.0, 0.67, -1.3};
+  agent_cmds_subscription_ = this->create_subscription<unitree_go::msg::MotorCmds>("/agent_cmds", 10, 
+    std::bind(&Go2JointControllerInterface::receiveCmdCallback, this, std::placeholders::_1));
+
+  stand_cmd_timer_ = this->create_wall_timer(std::chrono::milliseconds(20),
+    std::bind(&Go2JointControllerInterface::publishStandCmdCallback, this));
+  stand_cmd_timer_->cancel();
+
+  stand_cmd_q_ = {0.0,  0.9362, -1.5434,  0.0,  0.9362, -1.5434,  0.0,  0.9362, -1.5434,  0.0,  0.9362, -1.5434};
+  // stand_cmd_q_ = {0.0, 0.67, -1.3, 0.0, 0.67, -1.3, 0.0, 0.67, -1.3, 0.0, 0.67, -1.3};
 
   DisableMotionControl();
   std::this_thread::sleep_for(std::chrono::milliseconds(1000));
   StandUp();
 
-  low_cmd_timer_ = this->create_wall_timer(std::chrono::milliseconds(20), 
-    std::bind(&Go2JointControllerInterface::publishCmdCallback, this));
+  stand_timer_ = this->create_wall_timer(std::chrono::milliseconds(50), [this](){
+    if (stand_cmd_timer_->is_canceled()) StandUp();
+  });
 }
 
 Go2JointControllerInterface::~Go2JointControllerInterface()
@@ -49,6 +58,8 @@ void Go2JointControllerInterface::StandUp()
 {
   RCLCPP_INFO(this->get_logger(), "Standing Up.");
 
+  stand_ratio_ = 0.0;
+
   unitree_go::msg::LowState init_low_state;
 
   auto context = rclcpp::contexts::get_global_default_context();
@@ -74,25 +85,38 @@ void Go2JointControllerInterface::StandUp()
   low_cmd_.head[1] = 0xEF;
   low_cmd_.level_flag = 0xFF;
   low_cmd_.gpio = 0;
+
+  stand_cmd_timer_->reset();
 }
 
-void Go2JointControllerInterface::publishCmdCallback()
+void Go2JointControllerInterface::publishStandCmdCallback()
 {
-  stand_ratio_ += 0.005;
+  stand_ratio_ += 0.025;
   if (stand_ratio_ > 1.0) stand_ratio_ = 1.0;
 
   for (int j = 0; j < 12; j++)
   {
     low_cmd_.motor_cmd[j].mode = 0x01;
     low_cmd_.motor_cmd[j].q = init_state_q_[j] + stand_ratio_ * (stand_cmd_q_[j] - init_state_q_[j]);
-    low_cmd_.motor_cmd[j].kp = 60;
     low_cmd_.motor_cmd[j].dq = 0;
-    low_cmd_.motor_cmd[j].kd = 5;
     low_cmd_.motor_cmd[j].tau = 0;
+    low_cmd_.motor_cmd[j].kp = 60;
+    low_cmd_.motor_cmd[j].kd = 5;
   }
 
   get_crc(low_cmd_);
   low_cmd_publisher_->publish(low_cmd_);
+}
+
+void Go2JointControllerInterface::receiveCmdCallback(const unitree_go::msg::MotorCmds::SharedPtr msg)
+{
+  stand_timer_->reset();
+  stand_cmd_timer_->cancel();
+  for (int j = 0; j < 12; j++)
+    low_cmd_.motor_cmd[j] = msg->cmds[j];
+
+  get_crc(low_cmd_);
+  low_cmd_publisher_->publish(low_cmd_); 
 }
 
 
